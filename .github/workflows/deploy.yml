@@ -5,7 +5,8 @@ on:
     branches:
       - main # This workflow runs on pushes to the 'main' branch
     paths:
-      - 'backend/**' # Only run if changes are in the 'backend' folder
+      - 'backend/**'
+      - '.github/workflows/**'
 
 jobs:
   deploy:
