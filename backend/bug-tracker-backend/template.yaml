@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  bug-tracker-backend
+
+  Backend services for the Bug Tracker application.
+
+Globals:
+  Function:
+    Timeout: 3
+    LoggingConfig:
+      LogFormat: JSON
+
+Resources:
+# Our DynamoDB table for storing user data
+  UsersTable:
+    Type: AWS::DynamoDB::Table  # <-- Changed from SimpleTable
+    Properties:
+      TableName: Users
+      # Define all attributes that will be used as keys/indexes
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      # Define the primary key for the table
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      # Define the Global Secondary Index to allow querying by email
+      GlobalSecondaryIndexes:
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      # Use on-demand billing instead of provisioning capacity
+      BillingMode: PAY_PER_REQUEST
+
+  # The Lambda function for user registration
+  RegisterFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/handlers/
+      Handler: auth/register.handler
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      Events:
+        RegisterApi:
+          Type: Api
+          Properties:
+            Path: /register
+            Method: post
+      # Give the function permission to write to our UsersTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+      # Pass the table name to our function as an environment variable
+      Environment:
+        Variables:
+          USERS_TABLE_NAME: !Ref UsersTable
+
+Outputs:
+  BugTrackerApi:
+    Description: "API Gateway endpoint URL for the application"
+    Value: !Sub "https://://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
