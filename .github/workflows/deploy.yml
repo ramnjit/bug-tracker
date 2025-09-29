@@ -1,0 +1,34 @@
+name: Deploy Bug Tracker Backend
+
+on:
+  push:
+    branches:
+      - main # This workflow runs on pushes to the 'main' branch
+    paths:
+      - 'backend/**' # Only run if changes are in the 'backend' folder
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # Required for AWS authentication
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::832362088918:role/GitHubActions-BugTracker-Role
+          aws-region: us-east-1
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Build SAM application
+        run: sam build --template-file backend/bug-tracker-backend/template.yaml
+
+      - name: Deploy SAM application
+        run: sam deploy --config-file backend/bug-tracker-backend/samconfig.toml --no-confirm

@@ -22,10 +22,10 @@ export const handler = async (event) => {
       };
     }
 
-    // STEP 1: Check if user with this email already exists
+    // Check if user with this email already exists
     const userExistsParams = {
       TableName: tableName,
-      IndexName: "EmailIndex", // Use the index we created
+      IndexName: "EmailIndex",
       KeyConditionExpression: "email = :email",
       ExpressionAttributeValues: {
         ":email": email,
@@ -36,12 +36,12 @@ export const handler = async (event) => {
 
     if (existingUsers.Items && existingUsers.Items.length > 0) {
       return {
-        statusCode: 409, // Conflict
+        statusCode: 409,
         body: JSON.stringify({ message: "A user with this email already exists." }),
       };
     }
 
-    // STEP 2: If no user exists, create the new user
+    // If no user exists, create the new user
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = {
       userId: randomUUID(),

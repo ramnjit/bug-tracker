@@ -12,22 +12,32 @@ Globals:
       LogFormat: JSON
 
 Resources:
-# Our DynamoDB table for storing user data
+  # Define our main API Gateway
+  BugTrackerApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      # Define the authorizer for this API
+      Auth:
+        Authorizers:
+          JwtAuthorizer:
+            FunctionArn: !GetAtt TokenAuthorizerFunction.Arn
+            Identity:
+              Header: Authorization
+
+  # -- Tables --
   UsersTable:
-    Type: AWS::DynamoDB::Table  # <-- Changed from SimpleTable
+    Type: AWS::DynamoDB::Table
     Properties:
       TableName: Users
-      # Define all attributes that will be used as keys/indexes
       AttributeDefinitions:
         - AttributeName: userId
           AttributeType: S
         - AttributeName: email
           AttributeType: S
-      # Define the primary key for the table
       KeySchema:
         - AttributeName: userId
           KeyType: HASH
-      # Define the Global Secondary Index to allow querying by email
       GlobalSecondaryIndexes:
         - IndexName: EmailIndex
           KeySchema:
@@ -35,34 +45,96 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
-      # Use on-demand billing instead of provisioning capacity
       BillingMode: PAY_PER_REQUEST
 
-  # The Lambda function for user registration
+  OrganizationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Organizations
+      AttributeDefinitions:
+        - AttributeName: orgId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: orgId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+  # -- Lambda Functions --
   RegisterFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/handlers/
       Handler: auth/register.handler
       Runtime: nodejs20.x
-      Architectures:
-        - x86_64
       Events:
         RegisterApi:
           Type: Api
           Properties:
+            RestApiId: !Ref BugTrackerApi
             Path: /register
-            Method: post
-      # Give the function permission to write to our UsersTable
+            Method: post                        
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UsersTable
-      # Pass the table name to our function as an environment variable
       Environment:
         Variables:
           USERS_TABLE_NAME: !Ref UsersTable
 
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/handlers/
+      Handler: auth/login.handler
+      Runtime: nodejs20.x
+      Events:
+        LoginApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BugTrackerApi
+            Path: /login
+            Method: post                         
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UsersTable
+      Environment:
+        Variables:
+          USERS_TABLE_NAME: !Ref UsersTable
+          EMAIL_INDEX_NAME: EmailIndex
+          JWT_SECRET: "a-super-secret-key-for-dev"
+
+  TokenAuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/handlers/
+      Handler: auth/authorizer.handler
+      Runtime: nodejs20.x
+      Environment:
+        Variables:
+          JWT_SECRET: "a-super-secret-key-for-dev"
+
+  CreateOrganizationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/handlers/
+      Handler: orgs/create.handler
+      Runtime: nodejs20.x
+      Events:
+        CreateOrgApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BugTrackerApi
+            Path: /organizations
+            Method: post
+            Auth:
+              Authorizer: JwtAuthorizer # Secure this endpoint
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref OrganizationsTable
+      Environment:
+        Variables:
+          ORGS_TABLE_NAME: !Ref OrganizationsTable
+
 Outputs:
-  BugTrackerApi:
+  BugTrackerApiUrl:
     Description: "API Gateway endpoint URL for the application"
-    Value: !Sub "https://://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+    Value: !Sub "https://://${BugTrackerApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
