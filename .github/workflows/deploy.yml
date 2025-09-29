@@ -31,4 +31,4 @@ jobs:
         run: sam build --template-file backend/bug-tracker-backend/template.yaml
 
       - name: Deploy SAM application
-        run: sam deploy --config-file backend/bug-tracker-backend/samconfig.toml --no-confirm
+        run: sam deploy --config-file backend/bug-tracker-backend/samconfig.toml --no-confirm-changeset
