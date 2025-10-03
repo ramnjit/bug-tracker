@@ -35,7 +35,7 @@ export const handler = async (event) => {
     // Save the new issue to DynamoDB
     await dynamoDb.send(new PutCommand({ TableName: issuesTableName, Item: newIssue }));
 
-    // NEW: Publish an event to the SNS topic
+    // Publish an event to the SNS topic
     const snsParams = {
       TopicArn: topicArn,
       Message: JSON.stringify({

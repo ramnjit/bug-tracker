@@ -1,15 +1,18 @@
-// Import required AWS SDK clients and commands for Node.js
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
 import bcrypt from "bcryptjs";
 
-// Initialize the DynamoDB DocumentClient
 const client = new DynamoDBClient({});
 const dynamoDb = DynamoDBDocumentClient.from(client);
-
-// Get the table name from the environment variables
 const tableName = process.env.USERS_TABLE_NAME;
+
+// Define CORS headers
+const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+};
 
 export const handler = async (event) => {
   try {
@@ -18,6 +21,7 @@ export const handler = async (event) => {
     if (!email || !password) {
       return {
         statusCode: 400,
+        headers: corsHeaders,
         body: JSON.stringify({ message: "Email and password are required." }),
       };
     }
@@ -27,16 +31,14 @@ export const handler = async (event) => {
       TableName: tableName,
       IndexName: "EmailIndex",
       KeyConditionExpression: "email = :email",
-      ExpressionAttributeValues: {
-        ":email": email,
-      },
+      ExpressionAttributeValues: { ":email": email },
     };
-
     const existingUsers = await dynamoDb.send(new QueryCommand(userExistsParams));
 
     if (existingUsers.Items && existingUsers.Items.length > 0) {
       return {
         statusCode: 409,
+        headers: corsHeaders,
         body: JSON.stringify({ message: "A user with this email already exists." }),
       };
     }
@@ -50,15 +52,11 @@ export const handler = async (event) => {
       createdAt: new Date().toISOString(),
     };
 
-    await dynamoDb.send(
-      new PutCommand({
-        TableName: tableName,
-        Item: newUser,
-      })
-    );
+    await dynamoDb.send(new PutCommand({ TableName: tableName, Item: newUser }));
 
     return {
       statusCode: 201,
+      headers: corsHeaders,
       body: JSON.stringify({
         message: "User registered successfully.",
         userId: newUser.userId,
@@ -68,6 +66,7 @@ export const handler = async (event) => {
     console.error(error);
     return {
       statusCode: 500,
+      headers: corsHeaders,
       body: JSON.stringify({ message: "Could not register user.", error: error.message }),
     };
   }

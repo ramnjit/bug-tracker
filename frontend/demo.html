@@ -31,17 +31,16 @@
     </div>
 
     <script>
-        // --- CONFIGURATION ---
-        // We will paste the live API URL here after we deploy the backend.
+        // CONFIGURATION
         const apiUrl = "https://lnh11a8k6j.execute-api.us-east-1.amazonaws.com/Prod"; 
 
-        // --- DOM ELEMENTS ---
+        // DOM ELEMENTS
         const registerButton = document.getElementById('registerButton');
         const loginButton = document.getElementById('loginButton');
         const registerResponseEl = document.getElementById('registerResponse');
         const loginResponseEl = document.getElementById('loginResponse');
 
-        // --- REGISTER FUNCTION ---
+        // REGISTER FUNCTION
         registerButton.addEventListener('click', async () => {
             const email = document.getElementById('registerEmail').value;
             const password = document.getElementById('registerPassword').value;
@@ -60,7 +59,7 @@
             }
         });
 
-        // --- LOGIN FUNCTION ---
+        // LOGIN FUNCTION
         loginButton.addEventListener('click', async () => {
             const email = document.getElementById('loginEmail').value;
             const password = document.getElementById('loginPassword').value;
