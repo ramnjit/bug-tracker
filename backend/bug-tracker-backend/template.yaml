@@ -17,13 +17,16 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: Prod
-      # Define the authorizer for this API
       Auth:
         Authorizers:
           JwtAuthorizer:
             FunctionArn: !GetAtt TokenAuthorizerFunction.Arn
             Identity:
               Header: Authorization
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+        AllowOrigin: "'*'"
 
   # -- Tables --
   UsersTable:
@@ -59,6 +62,52 @@ Resources:
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
 
+  IssuesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Issues
+      AttributeDefinitions:
+        - AttributeName: issueId
+          AttributeType: S
+        - AttributeName: orgId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: issueId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: OrgIdIndex
+          KeySchema:
+            - AttributeName: orgId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+
+  CommentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Comments
+      AttributeDefinitions:
+        - AttributeName: commentId
+          AttributeType: S
+        - AttributeName: issueId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: commentId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: IssueIdIndex
+          KeySchema:
+            - AttributeName: issueId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+
+  # -- SNS for Notifications --
+  IssueEventsTopic:
+    Type: AWS::SNS::Topic
+
   # -- Lambda Functions --
   RegisterFunction:
     Type: AWS::Serverless::Function
@@ -72,7 +121,7 @@ Resources:
           Properties:
             RestApiId: !Ref BugTrackerApi
             Path: /register
-            Method: post                        
+            Method: post
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref UsersTable
@@ -92,7 +141,7 @@ Resources:
           Properties:
             RestApiId: !Ref BugTrackerApi
             Path: /login
-            Method: post                         
+            Method: post
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UsersTable
@@ -126,7 +175,7 @@ Resources:
             Path: /organizations
             Method: post
             Auth:
-              Authorizer: JwtAuthorizer # Secure this endpoint
+              Authorizer: JwtAuthorizer
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref OrganizationsTable
@@ -134,7 +183,143 @@ Resources:
         Variables:
           ORGS_TABLE_NAME: !Ref OrganizationsTable
 
+  CreateIssueFunctionV2:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers/issues/create.handler
+      Runtime: nodejs20.x
+      Events:
+        CreateIssueApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BugTrackerApi
+            Path: /organizations/{orgId}/issues
+            Method: post
+            Auth:
+              Authorizer: JwtAuthorizer
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:PutItem
+            Resource: !GetAtt IssuesTable.Arn
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt IssueEventsTopic.TopicName
+      Environment:
+        Variables:
+          ISSUES_TABLE_NAME: !Ref IssuesTable
+          ISSUE_EVENTS_TOPIC_ARN: !Ref IssueEventsTopic
+
+  ListIssuesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/handlers/
+      Handler: issues/list.handler
+      Runtime: nodejs20.x
+      Events:
+        ListIssuesApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BugTrackerApi
+            Path: /organizations/{orgId}/issues
+            Method: get
+            Auth:
+              Authorizer: JwtAuthorizer
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref IssuesTable
+      Environment:
+        Variables:
+          ISSUES_TABLE_NAME: !Ref IssuesTable
+          ORG_ID_INDEX_NAME: OrgIdIndex
+
+  CreateCommentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/handlers/
+      Handler: comments/create.handler
+      Runtime: nodejs20.x
+      Events:
+        CreateCommentApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BugTrackerApi
+            Path: /issues/{issueId}/comments
+            Method: post
+            Auth:
+              Authorizer: JwtAuthorizer
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CommentsTable
+      Environment:
+        Variables:
+          COMMENTS_TABLE_NAME: !Ref CommentsTable
+
+  ListCommentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/handlers/
+      Handler: comments/list.handler
+      Runtime: nodejs20.x
+      Events:
+        ListCommentsApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BugTrackerApi
+            Path: /issues/{issueId}/comments
+            Method: get
+            Auth:
+              Authorizer: JwtAuthorizer
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CommentsTable
+      Environment:
+        Variables:
+          COMMENTS_TABLE_NAME: !Ref CommentsTable
+          ISSUE_ID_INDEX_NAME: IssueIdIndex
+
+  NotificationProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/handlers/
+      Handler: notifications/processor.handler
+      Runtime: nodejs20.x
+      Events:
+        TopicEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref IssueEventsTopic
+
+  TestAuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      InlineCode: |
+        exports.handler = async (event) => {
+          return {
+            statusCode: 200,
+            body: JSON.stringify({ message: "Success!", authorizer: event.requestContext.authorizer }),
+          };
+        };
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Events:
+        TestApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BugTrackerApi
+            Path: /test
+            Method: get
+            Auth:
+              Authorizer: JwtAuthorizer
+
 Outputs:
   BugTrackerApiUrl:
     Description: "API Gateway endpoint URL for the application"
-    Value: !Sub "https://://${BugTrackerApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+    Value: !Join 
+      - ''
+      - - 'https://'
+        - !Ref BugTrackerApi
+        - '.execute-api.'
+        - !Ref AWS::Region
+        - '.amazonaws.com/Prod/'

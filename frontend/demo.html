@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bug Tracker API Demo</title>
+    <style>
+        body { font-family: system-ui, sans-serif; padding: 2em; line-height: 1.6; }
+        .container { max-width: 600px; margin: auto; }
+        h1, h2 { border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        input { width: 95%; padding: 8px; margin-bottom: 10px; font-size: 1em; }
+        button { font-size: 1em; padding: 10px 15px; cursor: pointer; }
+        pre { background-color: #f4f4f4; padding: 1em; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bug Tracker API - Live Demo</h1>
+
+        <h2>Step 1: Register a New User</h2>
+        <input type="email" id="registerEmail" placeholder="Enter your email">
+        <input type="password" id="registerPassword" placeholder="Enter your password">
+        <button id="registerButton">Register</button>
+        <pre id="registerResponse">API Response will appear here...</pre>
+
+        <h2>Step 2: Log In</h2>
+        <input type="email" id="loginEmail" placeholder="Enter your email">
+        <input type="password" id="loginPassword" placeholder="Enter your password">
+        <button id="loginButton">Log In</button>
+        <pre id="loginResponse">API Response will appear here...</pre>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        // We will paste the live API URL here after we deploy the backend.
+        const apiUrl = "https://lnh11a8k6j.execute-api.us-east-1.amazonaws.com/Prod"; 
+
+        // --- DOM ELEMENTS ---
+        const registerButton = document.getElementById('registerButton');
+        const loginButton = document.getElementById('loginButton');
+        const registerResponseEl = document.getElementById('registerResponse');
+        const loginResponseEl = document.getElementById('loginResponse');
+
+        // --- REGISTER FUNCTION ---
+        registerButton.addEventListener('click', async () => {
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            registerResponseEl.textContent = 'Registering...';
+
+            try {
+                const response = await fetch(`${apiUrl}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await response.json();
+                registerResponseEl.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                registerResponseEl.textContent = 'Error: ' + error.message;
+            }
+        });
+
+        // --- LOGIN FUNCTION ---
+        loginButton.addEventListener('click', async () => {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            loginResponseEl.textContent = 'Logging in...';
+
+            try {
+                const response = await fetch(`${apiUrl}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await response.json();
+                loginResponseEl.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                loginResponseEl.textContent = 'Error: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
